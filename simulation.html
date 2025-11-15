@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent-as-a-Judge Interactive Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.2em;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 15px 30px;
+            background: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: bold;
+        }
+
+        .content-section {
+            display: none;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            animation: fadeIn 0.5s;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .component-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border-left: 5px solid #667eea;
+        }
+
+        .component-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        #flowchart-viz, #knowledge-graph-viz, #dependency-graph {
+            width: 100%;
+            min-height: 1200px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            background: white;
+            margin: 20px 0;
+            overflow: auto;
+        }
+
+        #flowchart-viz svg, #knowledge-graph-viz svg {
+            display: block;
+            margin: 0 auto;
+        }
+
+        .evaluation-step {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+
+        .evaluation-step.error {
+            border-left-color: #dc3545;
+        }
+
+        .evaluation-step.warning {
+            border-left-color: #ffc107;
+        }
+
+        .step-number {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            font-size: 1em;
+            opacity: 0.9;
+        }
+
+        .requirement-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .requirement-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 5px solid #28a745;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .requirement-item.unsatisfied {
+            border-left-color: #dc3545;
+        }
+
+        .requirement-item.pending {
+            border-left-color: #ffc107;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.85em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .badge.satisfied {
+            background: #28a745;
+            color: white;
+        }
+
+        .badge.unsatisfied {
+            background: #dc3545;
+            color: white;
+        }
+
+        .badge.pending {
+            background: #ffc107;
+            color: white;
+        }
+
+        .control-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .control-panel button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+
+        .control-panel button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        .timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-left: 50px;
+            padding-bottom: 30px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 0;
+            bottom: -30px;
+            width: 2px;
+            background: #667eea;
+        }
+
+        .timeline-item::after {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #667eea;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .comparison-table th {
+            background: #667eea;
+            color: white;
+        }
+
+        .comparison-table tr:hover {
+            background: #f5f5f5;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+
+        .success-box {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+
+        .warning-box {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .tab {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>🤖 Agent-as-a-Judge Interactive Simulation</h1>
+        <p class="subtitle">Evaluating Agents with Agents - ICML 2025</p>
+        <p style="margin-top: 10px; color: #888;">Meta AI & KAUST | Zhuge et al. <br> Designed by Jahidul Arafat</p>
+    </header>
+
+    <div class="tabs">
+        <button class="tab active" onclick="showTab('overview')">📊 Overview</button>
+        <button class="tab" onclick="showTab('architecture')">🏗️ Architecture</button>
+        <button class="tab" onclick="showTab('flowchart')">📈 Process Flow</button>
+        <button class="tab" onclick="showTab('knowledge-graph')">🔗 Knowledge Graph</button>
+        <button class="tab" onclick="showTab('use-cases')">💡 Use Cases</button>
+        <button class="tab" onclick="showTab('simulation')">🎮 Live Simulation</button>
+        <button class="tab" onclick="showTab('results')">📉 Results</button>
+    </div>
+
+    <!-- Overview Section -->
+    <div id="overview" class="content-section active">
+        <h2>🎯 What is Agent-as-a-Judge?</h2>
+        <p style="font-size: 1.1em; margin: 20px 0;">
+            Agent-as-a-Judge is a framework that uses <strong>agentic systems to evaluate other agentic systems</strong>.
+            It's the natural evolution of LLM-as-a-Judge, incorporating tools, multi-step reasoning, and environment interaction.
+        </p>
+
+        <div class="info-box">
+            <strong>💡 Key Insight:</strong> Agentic systems think step-by-step like humans.
+            They should be evaluated like humans too—with rich feedback on their full thought and action trajectory, not just final outcomes.
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Alignment with Humans</div>
+                <div class="stat-value">90%</div>
+                <div class="stat-label">vs 70% for LLM-as-a-Judge</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Cost Reduction</div>
+                <div class="stat-value">97.6%</div>
+                <div class="stat-label">$0.03 vs $25 per task</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Time Reduction</div>
+                <div class="stat-value">97.7%</div>
+                <div class="stat-label">2 seconds vs 2 hours</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Components</div>
+                <div class="stat-value">5</div>
+                <div class="stat-label">Modular Design</div>
+            </div>
+        </div>
+
+        <h3 style="margin-top: 30px;">🔄 The Problem It Solves</h3>
+        <div class="component-card">
+            <h3>❌ Traditional Evaluation</h3>
+            <p><strong>Input:</strong> Code from agent</p>
+            <p><strong>Process:</strong> Check if final output is correct</p>
+            <p><strong>Output:</strong> ✓ Pass or ✗ Fail</p>
+            <p style="color: #dc3545; margin-top: 10px;"><strong>Problem:</strong> No insight into what went wrong or why!</p>
+        </div>
+
+        <div class="component-card" style="border-left-color: #28a745;">
+            <h3>✅ Agent-as-a-Judge Evaluation</h3>
+            <p><strong>Input:</strong> Code + workspace + trajectory</p>
+            <p><strong>Process:</strong> Check each requirement step-by-step with reasoning</p>
+            <p><strong>Output:</strong> Detailed breakdown of what worked and what didn't</p>
+            <p style="color: #28a745; margin-top: 10px;"><strong>Result:</strong> Actionable feedback for improvement!</p>
+        </div>
+
+        <h3 style="margin-top: 30px;">📚 DevAI Dataset</h3>
+        <ul style="margin: 20px 0; padding-left: 20px;">
+            <li><strong>55 realistic AI development tasks</strong></li>
+            <li><strong>365 hierarchical requirements</strong> (structured as DAG)</li>
+            <li><strong>125 preferences</strong> (softer criteria)</li>
+            <li>Covers: Computer Vision, NLP, RL, Time Series, Audio Processing</li>
+        </ul>
+    </div>
+
+    <!-- Architecture Section -->
+    <div id="architecture" class="content-section">
+        <h2>🏗️ System Architecture</h2>
+
+        <div class="component-card">
+            <h3>1️⃣ Graph Component</h3>
+            <p><strong>Purpose:</strong> Build workspace structure understanding</p>
+            <p><strong>Function:</strong> Maps files, directories, and dependencies</p>
+            <p><strong>Contribution:</strong> +11% alignment improvement</p>
+            <div class="code-block">
+                graph = {
+                "files": ["src/model.py", "src/train.py"],
+                "directories": ["src", "results"],
+                "file_types": {"python": [...], "text": [...]}
+                }</div>
+        </div>
+
+        <div class="component-card">
+            <h3>2️⃣ Locate Component</h3>
+            <p><strong>Purpose:</strong> Find relevant files for each requirement</p>
+            <p><strong>Function:</strong> Intelligently matches files to requirements</p>
+            <p><strong>Contribution:</strong> +8% alignment improvement</p>
+            <div class="code-block">
+                # Requirement: "CNN model in src/model.py"
+                # Located: ["src/model.py"]
+
+                # Requirement: "visualization saved"
+                # Located: ["results/figures/plot.png"]</div>
+        </div>
+
+        <div class="component-card">
+            <h3>3️⃣ Read Component</h3>
+            <p><strong>Purpose:</strong> Extract file contents</p>
+            <p><strong>Function:</strong> Reads 33+ file formats (code, images, docs)</p>
+            <p><strong>Contribution:</strong> +6% alignment improvement</p>
+            <div class="code-block">
+                contents = {
+                "src/model.py": "import torch.nn as nn...",
+                "results/metrics.txt": "Accuracy: 72.34%..."
+                }</div>
+        </div>
+
+        <div class="component-card">
+            <h3>4️⃣ Retrieve Component</h3>
+            <p><strong>Purpose:</strong> Analyze execution trajectory (Gray-box)</p>
+            <p><strong>Function:</strong> Extracts relevant steps, finds errors</p>
+            <p><strong>Contribution:</strong> Variable (depends on agent)</p>
+            <div class="code-block">
+                trajectory_steps = [
+                {"step": 5, "action": "Train model", "error": None},
+                {"step": 6, "action": "Save metrics", "error": "File not found"}
+                ]</div>
+        </div>
+
+        <div class="component-card">
+            <h3>5️⃣ Ask Component</h3>
+            <p><strong>Purpose:</strong> Make final judgment</p>
+            <p><strong>Function:</strong> Synthesizes evidence, returns SATISFIED/UNSATISFIED</p>
+            <p><strong>Contribution:</strong> Core decision-making</p>
+            <div class="code-block">
+                judgment = {
+                "status": "SATISFIED",
+                "justification": "Found 1 relevant file with appropriate
+                content. No errors in trajectory."
+                }</div>
+        </div>
+
+        <div class="success-box">
+            <strong>🎯 Performance Gains:</strong>
+            <ul>
+                <li>Base (Ask only): 65% alignment</li>
+                <li>+ Graph: 76% (+11%)</li>
+                <li>+ Read: 82% (+6%)</li>
+                <li>+ Locate: 90% (+8%)</li>
+                <li>+ Retrieve: 90% (varies)</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Flowchart Section -->
+    <div id="flowchart" class="content-section">
+        <h2>📈 Evaluation Process Flow</h2>
+        <p>This flowchart shows how Agent-as-a-Judge evaluates a single task with multiple requirements.</p>
+
+        <div class="control-panel">
+            <button onclick="createFlowchart('complete')">🔄 Complete Flow</button>
+            <button onclick="createFlowchart('components')">🧩 Component Detail</button>
+            <button onclick="createFlowchart('simplified')">⚡ Simplified</button>
+        </div>
+
+        <div id="flowchart-viz"></div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #667eea;"></div>
+                <span>Start/Input</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #28a745;"></div>
+                <span>Processing Step</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffc107;"></div>
+                <span>Decision Point</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #dc3545;"></div>
+                <span>Error/Skip</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #764ba2;"></div>
+                <span>Output/Result</span>
+            </div>
+        </div>
+
+        <div class="info-box" style="margin-top: 20px;">
+            <h4>📋 Process Flow Stages:</h4>
+            <ol style="margin: 10px 0; padding-left: 30px;">
+                <li><strong>Initialization:</strong> Receive task with requirements and agent's output (workspace + trajectory)</li>
+                <li><strong>Graph Construction:</strong> Build structural understanding of workspace files and directories</li>
+                <li><strong>Requirement Loop:</strong> For each requirement in dependency order:
+                    <ul style="margin-left: 20px;">
+                        <li>Check if dependencies are satisfied</li>
+                        <li>Locate relevant files using intelligent matching</li>
+                        <li>Read file contents (supports 33+ formats)</li>
+                        <li>Retrieve relevant trajectory steps (gray-box evaluation)</li>
+                        <li>Synthesize evidence and make judgment</li>
+                    </ul>
+                </li>
+                <li><strong>Final Report:</strong> Aggregate all judgments with statistics and justifications</li>
+            </ol>
+        </div>
+
+        <h3 style="margin-top: 30px;">Component Interaction Details</h3>
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <div class="component-card">
+                <h4>📊 Graph</h4>
+                <p><strong>Input:</strong> Workspace files</p>
+                <p><strong>Output:</strong> Structure map</p>
+                <p><strong>Purpose:</strong> Understanding file organization</p>
+            </div>
+            <div class="component-card">
+                <h4>🔍 Locate</h4>
+                <p><strong>Input:</strong> Requirement + Graph</p>
+                <p><strong>Output:</strong> Relevant file paths</p>
+                <p><strong>Purpose:</strong> Finding where to look</p>
+            </div>
+            <div class="component-card">
+                <h4>📖 Read</h4>
+                <p><strong>Input:</strong> File paths</p>
+                <p><strong>Output:</strong> File contents</p>
+                <p><strong>Purpose:</strong> Extracting information</p>
+            </div>
+            <div class="component-card">
+                <h4>🔄 Retrieve</h4>
+                <p><strong>Input:</strong> Requirement + Trajectory</p>
+                <p><strong>Output:</strong> Relevant steps</p>
+                <p><strong>Purpose:</strong> Understanding execution</p>
+            </div>
+            <div class="component-card">
+                <h4>⚖️ Ask</h4>
+                <p><strong>Input:</strong> All evidence</p>
+                <p><strong>Output:</strong> Judgment + Justification</p>
+                <p><strong>Purpose:</strong> Making decision</p>
+            </div>
+        </div>
+
+        <h3 style="margin-top: 30px;">Evidence Flow Example</h3>
+        <div class="code-block">
+            # Example: Evaluating "CNN model implemented in src/model.py"
+
+            1. Graph Component Output:
+            {
+            "files": ["src/model.py", "src/train.py", ...],
+            "file_types": {"python": ["src/model.py", ...]}
+            }
+
+            2. Locate Component Output:
+            ["src/model.py"]  # Mentioned explicitly in requirement
+
+            3. Read Component Output:
+            {
+            "src/model.py": "import torch.nn as nn\nclass CNNModel..."
+            }
+
+            4. Retrieve Component Output:
+            [
+            {"step": 2, "action": "Create CNN model", "error": None},
+            {"step": 7, "action": "Test model forward pass", "error": None}
+            ]
+
+            5. Ask Component Output:
+            {
+            "status": "SATISFIED",
+            "justification": "Found CNN implementation with Conv2d layers
+            in src/model.py. No errors in trajectory."
+            }</div>
+    </div>
+
+    <!-- Knowledge Graph Section -->
+    <div id="knowledge-graph" class="content-section">
+        <h2>🔗 Requirement Dependency Graph</h2>
+        <p>Requirements are structured as a Directed Acyclic Graph (DAG). If a requirement fails, its dependents cannot be evaluated.</p>
+
+        <div class="control-panel">
+            <button onclick="loadSampleTask('image-classification')">📸 Image Classification Task</button>
+            <button onclick="loadSampleTask('time-series')">📈 Time Series Task</button>
+            <button onclick="loadSampleTask('nlp')">💬 NLP Task</button>
+        </div>
+
+        <div id="knowledge-graph-viz"></div>
+
+        <div class="info-box">
+            <strong>📌 How Dependencies Work:</strong>
+            <ul>
+                <li>R0 (Load Dataset) has no dependencies → Can evaluate immediately</li>
+                <li>R1 (Preprocess Data) depends on R0 → Only evaluated if R0 satisfied</li>
+                <li>R3 (Train Model) depends on R1 & R2 → Only evaluated if both satisfied</li>
+                <li>This prevents wasted evaluation effort on impossible requirements</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Use Cases Section -->
+    <div id="use-cases" class="content-section">
+        <h2>💡 Four Demonstration Use Cases</h2>
+
+        <div class="timeline">
+            <div class="timeline-item">
+                <div class="component-card" style="border-left-color: #28a745;">
+                    <h3>Use Case 1: High-Performing Agent (GPT-Pilot) ⭐⭐⭐⭐⭐</h3>
+                    <p><strong>Task:</strong> Image Classification with CNN</p>
+                    <p><strong>Result:</strong> 6/6 requirements satisfied (100%)</p>
+                    <p><strong>What it shows:</strong></p>
+                    <ul>
+                        <li>✅ Complete workspace with all required files</li>
+                        <li>✅ Proper data normalization implemented</li>
+                        <li>✅ CNN architecture correctly built</li>
+                        <li>✅ All metrics and visualizations generated</li>
+                        <li>✅ Clean trajectory with no errors</li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>Cost:</strong> $0.006 | <strong>Time:</strong> 0.60s</p>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="component-card" style="border-left-color: #ffc107;">
+                    <h3>Use Case 2: Partially Complete Agent (MetaGPT) ⭐⭐⭐</h3>
+                    <p><strong>Task:</strong> Same image classification</p>
+                    <p><strong>Result:</strong> 3/6 requirements satisfied (50%)</p>
+                    <p><strong>What it shows:</strong></p>
+                    <ul>
+                        <li>✅ Dataset loaded successfully</li>
+                        <li>❌ Data normalization missing</li>
+                        <li>❌ Simple model instead of CNN</li>
+                        <li>⚠️ Warnings in execution trajectory</li>
+                        <li>❌ Visualization not generated</li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>Cost:</strong> $0.004 | <strong>Time:</strong> 0.40s</p>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="component-card" style="border-left-color: #dc3545;">
+                    <h3>Use Case 3: Low-Performing Agent (CustomAgent) ⭐</h3>
+                    <p><strong>Task:</strong> Same image classification</p>
+                    <p><strong>Result:</strong> 0/6 requirements satisfied (0%)</p>
+                    <p><strong>What it shows:</strong></p>
+                    <ul>
+                        <li>❌ Only placeholder files created</li>
+                        <li>❌ Multiple errors in trajectory</li>
+                        <li>❌ Timeout before completion</li>
+                        <li>❌ No meaningful implementation</li>
+                        <li>🔍 Demonstrates failure mode handling</li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>Cost:</strong> $0.006 | <strong>Time:</strong> 0.60s</p>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="component-card" style="border-left-color: #2196F3;">
+                    <h3>Use Case 4: Different Domain (OpenHands) 🔄</h3>
+                    <p><strong>Task:</strong> LSTM-based Sales Forecasting</p>
+                    <p><strong>Result:</strong> 5/5 requirements satisfied (100%)</p>
+                    <p><strong>What it shows:</strong></p>
+                    <ul>
+                        <li>✅ Framework generalizes to time series</li>
+                        <li>✅ Different requirement types (HCI, visualization)</li>
+                        <li>✅ Interactive HTML report generated</li>
+                        <li>✅ Domain-specific evaluation works</li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>Cost:</strong> $0.005 | <strong>Time:</strong> 0.50s</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Simulation Section -->
+    <div id="simulation" class="content-section">
+        <h2>🎮 Interactive Live Simulation</h2>
+        <p>Watch Agent-as-a-Judge evaluate a task step-by-step with detailed reasoning.</p>
+
+        <div class="control-panel">
+            <button onclick="runSimulation(1)">▶️ Run Use Case 1 (Perfect)</button>
+            <button onclick="runSimulation(2)">▶️ Run Use Case 2 (Partial)</button>
+            <button onclick="runSimulation(3)">▶️ Run Use Case 3 (Failed)</button>
+            <button onclick="resetSimulation()">🔄 Reset</button>
+        </div>
+
+        <div id="simulation-output" style="margin-top: 20px;">
+            <div class="info-box">
+                <strong>💡 Click a button above to start the simulation.</strong>
+                You'll see each component execute in real-time with detailed reasoning.
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="results" class="content-section">
+        <h2>📉 Performance Analysis & Results</h2>
+
+        <h3>Comparison: Agent-as-a-Judge vs. Alternatives</h3>
+        <table class="comparison-table">
+            <thead>
+            <tr>
+                <th>Method</th>
+                <th>Alignment</th>
+                <th>Cost/Task</th>
+                <th>Time/Task</th>
+                <th>Scalable?</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td><strong>Human Consensus</strong></td>
+                <td style="color: #28a745;">94% (Gold Standard)</td>
+                <td style="color: #dc3545;">$25</td>
+                <td style="color: #dc3545;">2 hours</td>
+                <td>❌ No</td>
+            </tr>
+            <tr style="background: #e8f5e9;">
+                <td><strong>Agent-as-a-Judge</strong></td>
+                <td style="color: #28a745;"><strong>90%</strong></td>
+                <td style="color: #28a745;"><strong>$0.03</strong></td>
+                <td style="color: #28a745;"><strong>2 seconds</strong></td>
+                <td style="color: #28a745;"><strong>✅ Yes</strong></td>
+            </tr>
+            <tr>
+                <td><strong>Individual Human</strong></td>
+                <td style="color: #ffc107;">85-90%</td>
+                <td style="color: #dc3545;">$15-30</td>
+                <td style="color: #dc3545;">1-2 hours</td>
+                <td>❌ No</td>
+            </tr>
+            <tr>
+                <td><strong>LLM-as-a-Judge</strong></td>
+                <td style="color: #dc3545;">60-84%</td>
+                <td style="color: #28a745;">$0.03</td>
+                <td style="color: #28a745;">11 minutes</td>
+                <td>✅ Yes</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <h3 style="margin-top: 40px;">Baseline Agent Performance on DevAI</h3>
+        <div id="agent-performance-chart"></div>
+
+        <h3 style="margin-top: 40px;">Cost Breakdown</h3>
+        <div id="cost-comparison-chart"></div>
+
+        <div class="success-box" style="margin-top: 30px;">
+            <h3>🎯 Key Findings</h3>
+            <ul>
+                <li><strong>90% alignment</strong> with human consensus (vs 70% for LLM-as-a-Judge)</li>
+                <li><strong>97.6% cost reduction</strong> compared to human evaluation</li>
+                <li><strong>97.7% time reduction</strong> - enables rapid iteration</li>
+                <li><strong>Generalizes across domains</strong> - works for CV, NLP, RL, Time Series</li>
+                <li><strong>Provides rich feedback</strong> - explains every judgment</li>
+                <li><strong>Handles dependencies</strong> - understands requirement relationships</li>
+            </ul>
+        </div>
+
+        <h3 style="margin-top: 40px;">Judge Shift Analysis</h3>
+        <p>Judge Shift measures deviation from human consensus (lower is better).</p>
+        <div id="judge-shift-chart"></div>
+    </div>
+</div>
+
+<script>
+    // Tab switching
+    function showTab(tabName) {
+        const sections = document.querySelectorAll('.content-section');
+        const tabs = document.querySelectorAll('.tab');
+
+        sections.forEach(section => {
+            section.classList.remove('active');
+        });
+
+        tabs.forEach(tab => {
+            tab.classList.remove('active');
+        });
+
+        document.getElementById(tabName).classList.add('active');
+        event.target.classList.add('active');
+
+        // Initialize visualizations when their tabs are opened
+        if (tabName === 'flowchart') {
+            createFlowchart();
+        } else if (tabName === 'knowledge-graph') {
+            loadSampleTask('image-classification');
+        } else if (tabName === 'results') {
+            createPerformanceChart();
+            createCostChart();
+            createJudgeShiftChart();
+        }
+    }
+
+    // Create Flowchart
+    function createFlowchart(type = 'complete') {
+        const container = document.getElementById('flowchart-viz');
+        container.innerHTML = '';
+
+        const width = container.clientWidth;
+        const height = 800;
+
+        const svg = d3.select('#flowchart-viz')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height);
+
+        let nodes, edges;
+
+        if (type === 'complete') {
+            // Complete detailed flow
+            nodes = [
+                {id: 1, label: 'START\nTask + Agent Output', x: width/2, y: 40, color: '#667eea', width: 180},
+                {id: 2, label: 'Graph Component\nBuild Workspace Graph', x: width/2, y: 120, color: '#28a745', width: 180},
+                {id: 3, label: 'Get All Requirements\n(with DAG structure)', x: width/2, y: 200, color: '#667eea', width: 180},
+                {id: 4, label: 'Sort by Dependencies\nTopological Order', x: width/2, y: 280, color: '#28a745', width: 180},
+                {id: 5, label: 'Select Next\nRequirement', x: width/2, y: 360, color: '#ffc107', width: 140, shape: 'diamond'},
+                {id: 6, label: 'More\nRequirements?', x: width*0.25, y: 440, color: '#ffc107', width: 120, shape: 'diamond'},
+                {id: 7, label: 'Check Dependencies\nAll Satisfied?', x: width*0.5, y: 440, color: '#ffc107', width: 140, shape: 'diamond'},
+                {id: 20, label: 'Mark as SKIPPED\n(Dependencies Failed)', x: width*0.75, y: 520, color: '#dc3545', width: 180},
+                {id: 8, label: 'Locate Component\nFind Relevant Files', x: width*0.5, y: 600, color: '#28a745', width: 180},
+                {id: 9, label: 'Located\nFiles?', x: width*0.5, y: 680, color: '#ffc107', width: 120, shape: 'diamond'},
+                {id: 21, label: 'Use All\nWorkspace Files', x: width*0.7, y: 760, color: '#ffc107', width: 140},
+                {id: 10, label: 'Read Component\nExtract File Contents', x: width*0.3, y: 840, color: '#28a745', width: 180},
+                {id: 11, label: 'Retrieve Component\nGet Trajectory Steps', x: width*0.3, y: 920, color: '#28a745', width: 180},
+                {id: 12, label: 'Ask Component\nSynthesize Evidence', x: width*0.3, y: 1000, color: '#764ba2', width: 180},
+                {id: 13, label: 'Make Judgment\nSATISFIED/UNSATISFIED', x: width*0.3, y: 1080, color: '#764ba2', width: 200},
+                {id: 14, label: 'Generate\nJustification', x: width*0.3, y: 1160, color: '#764ba2', width: 140},
+                {id: 15, label: 'Update Requirement\nStatus + Justification', x: width*0.5, y: 1240, color: '#28a745', width: 180},
+                {id: 16, label: 'All Requirements\nProcessed?', x: width*0.5, y: 1320, color: '#ffc107', width: 160, shape: 'diamond'},
+                {id: 17, label: 'Calculate Statistics\nSatisfied/Total', x: width*0.5, y: 1420, color: '#764ba2', width: 180},
+                {id: 18, label: 'Generate Final Report\nWith All Judgments', x: width*0.5, y: 1500, color: '#764ba2', width: 180},
+                {id: 19, label: 'END\nReturn Evaluation', x: width*0.5, y: 1580, color: '#667eea', width: 180}
+            ];
+
+            edges = [
+                {from: 1, to: 2},
+                {from: 2, to: 3},
+                {from: 3, to: 4},
+                {from: 4, to: 5},
+                {from: 5, to: 6},
+                {from: 6, to: 7, label: 'Yes'},
+                {from: 6, to: 17, label: 'No'},
+                {from: 7, to: 8, label: 'Yes'},
+                {from: 7, to: 20, label: 'No'},
+                {from: 20, to: 15},
+                {from: 8, to: 9},
+                {from: 9, to: 10, label: 'Yes'},
+                {from: 9, to: 21, label: 'No'},
+                {from: 21, to: 10},
+                {from: 10, to: 11},
+                {from: 11, to: 12},
+                {from: 12, to: 13},
+                {from: 13, to: 14},
+                {from: 14, to: 15},
+                {from: 15, to: 16},
+                {from: 16, to: 5, label: 'No', curved: true},
+                {from: 16, to: 17, label: 'Yes'},
+                {from: 17, to: 18},
+                {from: 18, to: 19}
+            ];
+        } else if (type === 'components') {
+            // Component-focused view
+            nodes = [
+                {id: 1, label: 'Input:\nTask + Requirements\n+ Agent Output', x: width/2, y: 50, color: '#667eea', width: 200},
+                {id: 2, label: '📊 GRAPH\nStructural Analysis', x: width/2, y: 160, color: '#28a745', width: 180},
+                {id: 3, label: 'Workspace Structure:\nFiles, Dirs, Types', x: width/2, y: 250, color: '#e3f2fd', width: 180},
+                {id: 4, label: 'FOR EACH\nREQUIREMENT', x: width/2, y: 360, color: '#ffc107', width: 140, shape: 'diamond'},
+                {id: 5, label: '🔍 LOCATE\nFile Matching', x: width*0.2, y: 480, color: '#28a745', width: 140},
+                {id: 6, label: '📖 READ\nContent Extraction', x: width*0.4, y: 480, color: '#28a745', width: 160},
+                {id: 7, label: '🔄 RETRIEVE\nTrajectory Analysis', x: width*0.6, y: 480, color: '#28a745', width: 160},
+                {id: 8, label: '⚖️ ASK\nJudgment + Reason', x: width*0.8, y: 480, color: '#764ba2', width: 160},
+                {id: 9, label: 'Evidence Bundle:\n• Located Files\n• Contents\n• Trajectory\n• Graph', x: width/2, y: 600, color: '#fff3e0', width: 200},
+                {id: 10, label: 'Judgment:\nSATISFIED ✓\nor\nUNSATISFIED ✗', x: width/2, y: 710, color: '#764ba2', width: 160},
+                {id: 11, label: 'Justification:\nDetailed Reasoning', x: width/2, y: 810, color: '#764ba2', width: 180},
+                {id: 12, label: 'Output:\nEvaluation Report\n+ Statistics', x: width/2, y: 920, color: '#667eea', width: 180}
+            ];
+
+            edges = [
+                {from: 1, to: 2},
+                {from: 2, to: 3},
+                {from: 3, to: 4},
+                {from: 4, to: 5},
+                {from: 4, to: 6},
+                {from: 4, to: 7},
+                {from: 5, to: 9},
+                {from: 6, to: 9},
+                {from: 7, to: 9},
+                {from: 9, to: 8},
+                {from: 8, to: 10},
+                {from: 10, to: 11},
+                {from: 11, to: 4, label: 'Next', curved: true},
+                {from: 11, to: 12, label: 'Done'}
+            ];
+        } else {
+            // Simplified view
+            nodes = [
+                {id: 1, label: 'Task Input', x: width/2, y: 50, color: '#667eea', width: 140},
+                {id: 2, label: 'Build Graph', x: width/2, y: 150, color: '#28a745', width: 140},
+                {id: 3, label: 'Loop Requirements', x: width/2, y: 250, color: '#ffc107', width: 160, shape: 'diamond'},
+                {id: 4, label: 'Check Dependencies', x: width*0.35, y: 350, color: '#ffc107', width: 180, shape: 'diamond'},
+                {id: 5, label: 'Collect Evidence\n(Locate + Read + Retrieve)', x: width*0.65, y: 470, color: '#28a745', width: 220},
+                {id: 6, label: 'Make Judgment\n(Ask Component)', x: width*0.65, y: 600, color: '#764ba2', width: 180},
+                {id: 7, label: 'Skip\nRequirement', x: width*0.15, y: 470, color: '#dc3545', width: 140},
+                {id: 8, label: 'Generate Report', x: width/2, y: 730, color: '#764ba2', width: 160},
+                {id: 9, label: 'Output', x: width/2, y: 830, color: '#667eea', width: 120}
+            ];
+
+            edges = [
+                {from: 1, to: 2},
+                {from: 2, to: 3},
+                {from: 3, to: 4, label: 'Next Req'},
+                {from: 4, to: 5, label: 'OK'},
+                {from: 4, to: 7, label: 'Failed'},
+                {from: 5, to: 6},
+                {from: 6, to: 3, label: 'Loop', curved: true},
+                {from: 7, to: 3, label: 'Continue', curved: true},
+                {from: 3, to: 8, label: 'Done'},
+                {from: 8, to: 9}
+            ];
+        }
+
+        // Adjust SVG height based on content
+        const maxY = Math.max(...nodes.map(n => n.y)) + 100;
+        svg.attr('height', maxY);
+
+        // Draw edges with better curves
+        edges.forEach(edge => {
+            const fromNode = nodes.find(n => n.id === edge.from);
+            const toNode = nodes.find(n => n.id === edge.to);
+
+            const fromWidth = fromNode.width || 160;
+            const toWidth = toNode.width || 160;
+            const fromHeight = fromNode.shape === 'diamond' ? 60 : 50;
+            const toHeight = toNode.shape === 'diamond' ? 60 : 50;
+
+            let path;
+            if (edge.curved) {
+                // Curved line for back edges
+                const midX = Math.max(fromNode.x, toNode.x) + 100;
+                path = `M ${fromNode.x} ${fromNode.y + fromHeight/2}
+                            C ${midX} ${fromNode.y}, ${midX} ${toNode.y},
+                            ${toNode.x + toWidth/2} ${toNode.y}`;
+            } else if (Math.abs(fromNode.x - toNode.x) > 50) {
+                // Angled line for different columns
+                const midY = (fromNode.y + toNode.y) / 2;
+                path = `M ${fromNode.x} ${fromNode.y + fromHeight/2}
+                            L ${fromNode.x} ${midY}
+                            L ${toNode.x} ${midY}
+                            L ${toNode.x} ${toNode.y - toHeight/2}`;
+            } else {
+                // Straight line
+                path = `M ${fromNode.x} ${fromNode.y + fromHeight/2}
+                            L ${toNode.x} ${toNode.y - toHeight/2}`;
+            }
+
+            svg.append('path')
+                .attr('d', path)
+                .attr('stroke', '#666')
+                .attr('stroke-width', 2)
+                .attr('fill', 'none')
+                .attr('marker-end', 'url(#arrowhead)');
+
+            if (edge.label) {
+                let labelX, labelY;
+                if (edge.curved) {
+                    labelX = Math.max(fromNode.x, toNode.x) + 110;
+                    labelY = (fromNode.y + toNode.y) / 2;
+                } else {
+                    labelX = (fromNode.x + toNode.x) / 2 + 20;
+                    labelY = (fromNode.y + toNode.y) / 2;
+                }
+
+                svg.append('text')
+                    .attr('x', labelX)
+                    .attr('y', labelY)
+                    .attr('fill', '#666')
+                    .attr('font-size', '11px')
+                    .attr('font-weight', 'bold')
+                    .text(edge.label);
+            }
+        });
+
+        // Define arrowhead marker
+        svg.append('defs').append('marker')
+            .attr('id', 'arrowhead')
+            .attr('markerWidth', 10)
+            .attr('markerHeight', 10)
+            .attr('refX', 9)
+            .attr('refY', 3)
+            .attr('orient', 'auto')
+            .append('polygon')
+            .attr('points', '0 0, 10 3, 0 6')
+            .attr('fill', '#666');
+
+        // Draw nodes
+        nodes.forEach(node => {
+            const nodeWidth = node.width || 160;
+            const nodeHeight = node.shape === 'diamond' ? 60 : 50;
+
+            if (node.shape === 'diamond') {
+                // Diamond shape for decision nodes
+                svg.append('path')
+                    .attr('d', `M ${node.x},${node.y - nodeHeight/2}
+                                   L ${node.x + nodeWidth/2},${node.y}
+                                   L ${node.x},${node.y + nodeHeight/2}
+                                   L ${node.x - nodeWidth/2},${node.y} Z`)
+                    .attr('fill', node.color)
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 2);
+            } else {
+                // Rectangle shape for process nodes
+                svg.append('rect')
+                    .attr('x', node.x - nodeWidth/2)
+                    .attr('y', node.y - nodeHeight/2)
+                    .attr('width', nodeWidth)
+                    .attr('height', nodeHeight)
+                    .attr('rx', 10)
+                    .attr('fill', node.color)
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 2);
+            }
+
+            // Add text with line breaks
+            const lines = node.label.split('\n');
+            const text = svg.append('text')
+                .attr('x', node.x)
+                .attr('y', node.y - (lines.length - 1) * 6)
+                .attr('text-anchor', 'middle')
+                .attr('dominant-baseline', 'middle')
+                .attr('fill', node.color === '#e3f2fd' || node.color === '#fff3e0' ? '#333' : 'white')
+                .attr('font-weight', 'bold')
+                .attr('font-size', '11px');
+
+            lines.forEach((line, i) => {
+                text.append('tspan')
+                    .attr('x', node.x)
+                    .attr('dy', i === 0 ? 0 : 14)
+                    .text(line);
+            });
+        });
+    }
+
+    // Load sample task for knowledge graph
+    function loadSampleTask(taskType) {
+        let nodes, links;
+
+        if (taskType === 'image-classification') {
+            nodes = [
+                {id: 'R0', label: 'R0: Load CIFAR-10\nDataset', status: 'satisfied'},
+                {id: 'R1', label: 'R1: Normalize\nData', status: 'satisfied'},
+                {id: 'R2', label: 'R2: CNN Model', status: 'satisfied'},
+                {id: 'R3', label: 'R3: Train\nModel', status: 'satisfied'},
+                {id: 'R4', label: 'R4: Save\nMetrics', status: 'unsatisfied'},
+                {id: 'R5', label: 'R5: Confusion\nMatrix', status: 'unsatisfied'}
+            ];
+            links = [
+                {source: 'R0', target: 'R1'},
+                {source: 'R1', target: 'R3'},
+                {source: 'R2', target: 'R3'},
+                {source: 'R3', target: 'R4'},
+                {source: 'R4', target: 'R5'}
+            ];
+        } else if (taskType === 'time-series') {
+            nodes = [
+                {id: 'R0', label: 'R0: Load Sales\nData', status: 'satisfied'},
+                {id: 'R1', label: 'R1: Train/Test\nSplit', status: 'satisfied'},
+                {id: 'R2', label: 'R2: LSTM\nModel', status: 'satisfied'},
+                {id: 'R3', label: 'R3: Forecast\nPlot', status: 'satisfied'},
+                {id: 'R4', label: 'R4: HTML\nReport', status: 'satisfied'}
+            ];
+            links = [
+                {source: 'R0', target: 'R1'},
+                {source: 'R1', target: 'R3'},
+                {source: 'R2', target: 'R3'},
+                {source: 'R3', target: 'R4'}
+            ];
+        } else {
+            nodes = [
+                {id: 'R0', label: 'R0: Load\nDataset', status: 'satisfied'},
+                {id: 'R1', label: 'R1: Tokenize\nText', status: 'satisfied'},
+                {id: 'R2', label: 'R2: BERT\nModel', status: 'satisfied'},
+                {id: 'R3', label: 'R3: Fine-tune', status: 'unsatisfied'},
+                {id: 'R4', label: 'R4: Evaluate', status: 'pending'}
+            ];
+            links = [
+                {source: 'R0', target: 'R1'},
+                {source: 'R1', target: 'R3'},
+                {source: 'R2', target: 'R3'},
+                {source: 'R3', target: 'R4'}
+            ];
+        }
+
+        createKnowledgeGraph(nodes, links);
+    }
+
+    // Create Knowledge Graph
+    function createKnowledgeGraph(nodesData, linksData) {
+        const container = document.getElementById('knowledge-graph-viz');
+        container.innerHTML = '';
+
+        const width = container.clientWidth;
+        const height = 600;
+
+        const svg = d3.select('#knowledge-graph-viz')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height);
+
+        const simulation = d3.forceSimulation(nodesData)
+            .force('link', d3.forceLink(linksData).id(d => d.id).distance(150))
+            .force('charge', d3.forceManyBody().strength(-300))
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collision', d3.forceCollide().radius(60));
+
+        // Draw links
+        const link = svg.append('g')
+            .selectAll('line')
+            .data(linksData)
+            .enter()
+            .append('line')
+            .attr('stroke', '#999')
+            .attr('stroke-width', 3)
+            .attr('marker-end', 'url(#arrow)');
+
+        // Define arrow marker
+        svg.append('defs').append('marker')
+            .attr('id', 'arrow')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 25)
+            .attr('refY', 0)
+            .attr('markerWidth', 6)
+            .attr('markerHeight', 6)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', '#999');
+
+        // Draw nodes
+        const node = svg.append('g')
+            .selectAll('g')
+            .data(nodesData)
+            .enter()
+            .append('g')
+            .call(d3.drag()
+                .on('start', dragstarted)
+                .on('drag', dragged)
+                .on('end', dragended));
+
+        node.append('circle')
+            .attr('r', 50)
+            .attr('fill', d => {
+                if (d.status === 'satisfied') return '#28a745';
+                if (d.status === 'unsatisfied') return '#dc3545';
+                return '#ffc107';
+            })
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 3);
+
+        node.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('dominant-baseline', 'middle')
+            .attr('fill', 'white')
+            .attr('font-weight', 'bold')
+            .attr('font-size', '12px')
+            .selectAll('tspan')
+            .data(d => d.label.split('\n'))
+            .enter()
+            .append('tspan')
+            .attr('x', 0)
+            .attr('dy', (d, i) => i === 0 ? -10 : 15)
+            .text(d => d);
+
+        simulation.on('tick', () => {
+            link
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+
+            node.attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+    }
+
+    // Run simulation
+    let simulationStep = 0;
+    let simulationInterval;
+
+    function runSimulation(useCase) {
+        clearInterval(simulationInterval);
+        simulationStep = 0;
+        const output = document.getElementById('simulation-output');
+        output.innerHTML = '<div class="info-box"><strong>🚀 Starting Simulation...</strong></div>';
+
+        const steps = getSimulationSteps(useCase);
+
+        simulationInterval = setInterval(() => {
+            if (simulationStep < steps.length) {
+                const step = steps[simulationStep];
+                const stepDiv = document.createElement('div');
+                stepDiv.className = `evaluation-step ${step.type || ''}`;
+                stepDiv.innerHTML = `
+                        <span class="step-number">${simulationStep + 1}</span>
+                        <strong>${step.component}</strong>
+                        <p>${step.message}</p>
+                        ${step.detail ? `<p style="margin-top: 5px; color: #666;">${step.detail}</p>` : ''}
+                    `;
+                output.appendChild(stepDiv);
+                output.scrollTop = output.scrollHeight;
+                simulationStep++;
+            } else {
+                clearInterval(simulationInterval);
+                const finalDiv = document.createElement('div');
+                finalDiv.className = 'success-box';
+                finalDiv.innerHTML = `
+                        <strong>✅ Simulation Complete!</strong>
+                        <p>Evaluated all requirements with detailed reasoning.</p>
+                    `;
+                output.appendChild(finalDiv);
+            }
+        }, 800);
+    }
+
+    function getSimulationSteps(useCase) {
+        if (useCase === 1) {
+            return [
+                {component: 'Task Input', message: 'Received Task: Image Classification with CNN', detail: 'Agent: GPT-Pilot | 6 requirements'},
+                {component: 'Graph Component', message: 'Building workspace graph...', detail: 'Found 5 files across 3 directories'},
+                {component: 'Requirement R0', message: 'Evaluating: CIFAR-10 dataset loaded'},
+                {component: 'Locate', message: 'Located file: src/data_loader.py', detail: 'Explicitly mentioned in requirement'},
+                {component: 'Read', message: 'Read src/data_loader.py (456 chars)', detail: 'Preview: import torch from torchvision...'},
+                {component: 'Retrieve', message: 'Found 1 relevant trajectory step', detail: 'Step 0: Create src/data_loader.py - No errors'},
+                {component: 'Ask', message: 'SATISFIED ✓', detail: 'Found relevant file with CIFAR-10 loading code. No errors detected.', type: ''},
+                {component: 'Requirement R1', message: 'Evaluating: Data normalization implemented'},
+                {component: 'Locate', message: 'Located file: src/data_loader.py'},
+                {component: 'Read', message: 'Found normalization transforms in code'},
+                {component: 'Ask', message: 'SATISFIED ✓', detail: 'Normalization present: transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))', type: ''},
+                {component: 'Requirement R2', message: 'Evaluating: CNN model implemented'},
+                {component: 'Locate', message: 'Located file: src/model.py'},
+                {component: 'Read', message: 'Found CNN architecture with Conv2d layers'},
+                {component: 'Ask', message: 'SATISFIED ✓', detail: 'CNN with conv1, conv2, pooling, and fully connected layers found.', type: ''},
+                {component: 'Summary', message: 'Evaluation Complete: 6/6 requirements satisfied (100%)', detail: 'Total cost: $0.006 | Total time: 0.60s', type: ''}
+            ];
+        } else if (useCase === 2) {
+            return [
+                {component: 'Task Input', message: 'Received Task: Image Classification with CNN', detail: 'Agent: MetaGPT | 6 requirements'},
+                {component: 'Graph Component', message: 'Building workspace graph...', detail: 'Found 3 files across 2 directories'},
+                {component: 'Requirement R0', message: 'Evaluating: CIFAR-10 dataset loaded'},
+                {component: 'Locate', message: 'Located file: src/data_loader.py'},
+                {component: 'Read', message: 'Read src/data_loader.py (234 chars)'},
+                {component: 'Ask', message: 'SATISFIED ✓', detail: 'Dataset loading code found.', type: ''},
+                {component: 'Requirement R1', message: 'Evaluating: Data normalization implemented'},
+                {component: 'Locate', message: 'Located file: src/data_loader.py'},
+                {component: 'Read', message: 'No normalization transforms found'},
+                {component: 'Retrieve', message: 'Warning in trajectory: No normalization applied', type: 'warning'},
+                {component: 'Ask', message: 'UNSATISFIED ✗', detail: 'No normalization code detected in data_loader.py', type: 'error'},
+                {component: 'Requirement R2', message: 'Evaluating: CNN model implemented'},
+                {component: 'Locate', message: 'Located file: src/model.py'},
+                {component: 'Read', message: 'Found simple linear model, not CNN'},
+                {component: 'Ask', message: 'UNSATISFIED ✗', detail: 'Only Linear layer found, no Conv2d layers for CNN.', type: 'error'},
+                {component: 'Requirement R3', message: 'Checking dependencies...', type: 'warning'},
+                {component: 'Dependency Check', message: 'R3 depends on R1 (UNSATISFIED)', detail: 'Skipping R3 evaluation', type: 'warning'},
+                {component: 'Summary', message: 'Evaluation Complete: 3/6 requirements satisfied (50%)', detail: 'Total cost: $0.004 | Total time: 0.40s', type: 'warning'}
+            ];
+        } else {
+            return [
+                {component: 'Task Input', message: 'Received Task: Image Classification with CNN', detail: 'Agent: CustomAgent | 6 requirements'},
+                {component: 'Graph Component', message: 'Building workspace graph...', detail: 'Found 2 files across 1 directory'},
+                {component: 'Requirement R0', message: 'Evaluating: CIFAR-10 dataset loaded'},
+                {component: 'Locate', message: 'No relevant files found'},
+                {component: 'Read', message: 'Only placeholder main.py exists'},
+                {component: 'Retrieve', message: 'ERROR in trajectory: Connection timeout', type: 'error'},
+                {component: 'Ask', message: 'UNSATISFIED ✗', detail: 'No dataset loading code found. Errors in execution.', type: 'error'},
+                {component: 'Requirement R1', message: 'Checking dependencies...', type: 'warning'},
+                {component: 'Dependency Check', message: 'R1 depends on R0 (UNSATISFIED)', detail: 'Skipping R1 evaluation', type: 'error'},
+                {component: 'Requirement R2', message: 'Evaluating: CNN model implemented'},
+                {component: 'Locate', message: 'No model.py found'},
+                {component: 'Ask', message: 'UNSATISFIED ✗', detail: 'No model implementation found.', type: 'error'},
+                {component: 'Summary', message: 'Evaluation Complete: 0/6 requirements satisfied (0%)', detail: 'Agent failed to make meaningful progress. Total cost: $0.006 | Total time: 0.60s', type: 'error'}
+            ];
+        }
+    }
+
+    function resetSimulation() {
+        clearInterval(simulationInterval);
+        document.getElementById('simulation-output').innerHTML = `
+                <div class="info-box">
+                    <strong>💡 Click a button above to start the simulation.</strong>
+                    You'll see each component execute in real-time with detailed reasoning.
+                </div>
+            `;
+    }
+
+    // Create performance chart
+    function createPerformanceChart() {
+        const data = [{
+            x: ['MetaGPT', 'GPT-Pilot', 'OpenHands'],
+            y: [22.13, 44.80, 42.89],
+            name: 'Independent',
+            type: 'bar',
+            marker: {color: '#667eea'}
+        }, {
+            x: ['MetaGPT', 'GPT-Pilot', 'OpenHands'],
+            y: [6.55, 28.96, 28.68],
+            name: 'With Dependencies',
+            type: 'bar',
+            marker: {color: '#764ba2'}
+        }];
+
+        const layout = {
+            title: 'Agent Performance on DevAI (% Requirements Satisfied)',
+            barmode: 'group',
+            yaxis: {title: 'Requirements Satisfied (%)'},
+            xaxis: {title: 'Agent'},
+            showlegend: true,
+            legend: {x: 0.7, y: 1}
+        };
+
+        Plotly.newPlot('agent-performance-chart', data, layout, {responsive: true});
+    }
+
+    // Create cost chart
+    function createCostChart() {
+        const data = [{
+            x: ['Human Evaluation', 'Agent-as-a-Judge', 'LLM-as-a-Judge'],
+            y: [25, 0.03, 0.03],
+            type: 'bar',
+            marker: {
+                color: ['#dc3545', '#28a745', '#ffc107']
+            }
+        }];
+
+        const layout = {
+            title: 'Cost Comparison per Task',
+            yaxis: {title: 'Cost (USD)', type: 'log'},
+            xaxis: {title: 'Method'},
+            showlegend: false
+        };
+
+        Plotly.newPlot('cost-comparison-chart', data, layout, {responsive: true});
+    }
+
+    // Create judge shift chart
+    function createJudgeShiftChart() {
+        const data = [{
+            x: ['MetaGPT', 'GPT-Pilot', 'OpenHands'],
+            y: [2.74, 32.24, 31.42],
+            name: 'LLM-as-a-Judge',
+            type: 'bar',
+            marker: {color: '#dc3545'}
+        }, {
+            x: ['MetaGPT', 'GPT-Pilot', 'OpenHands'],
+            y: [3.26, 8.20, 0.27],
+            name: 'Agent-as-a-Judge',
+            type: 'bar',
+            marker: {color: '#28a745'}
+        }];
+
+        const layout = {
+            title: 'Judge Shift (Deviation from Human Consensus - Lower is Better)',
+            yaxis: {title: 'Judge Shift (%)'},
+            xaxis: {title: 'Agent Evaluated'},
+            barmode: 'group',
+            showlegend: true,
+            legend: {x: 0.7, y: 1}
+        };
+
+        Plotly.newPlot('judge-shift-chart', data, layout, {responsive: true});
+    }
+
+    // Initialize on load
+    window.addEventListener('load', () => {
+        // Create initial visualizations
+        createFlowchart();
+        loadSampleTask('image-classification');
+    });
+</script>
+</body>
+</html>
